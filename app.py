@@ -11,7 +11,7 @@ from google import genai
 from google.genai import types
 from pypdf import PdfReader
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.8-flash"
 MAX_RESUME_CHARS = 20000
 MIN_RESUME_CHARS = 200
 
@@ -170,6 +170,25 @@ def get_api_key(sidebar_key: str) -> str:
     return os.environ.get("GEMINI_API_KEY", "")
 
 
+def get_default_model() -> str:
+    try:
+        if "GEMINI_MODEL" in st.secrets:
+            return st.secrets["GEMINI_MODEL"]
+    except Exception:
+        pass
+    return os.environ.get("GEMINI_MODEL", DEFAULT_MODEL)
+
+
+def friendly_error(exc: Exception) -> str:
+    msg = str(exc)
+    if "NOT_FOUND" in msg or "404" in msg:
+        return (
+            f"{msg}\n\nThe selected Gemini model is unavailable. Change the model name in the sidebar "
+            "(or set GEMINI_MODEL in Streamlit secrets) to a current Gemini Flash model."
+        )
+    return msg
+
+
 def analyze_resume(api_key: str, model: str, resume_text: str, job_description: str) -> dict:
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
@@ -257,7 +276,7 @@ def main() -> None:
             type="password",
             help="Optional if GEMINI_API_KEY is set in Streamlit secrets.",
         )
-        model = st.text_input("Gemini model", value=DEFAULT_MODEL)
+        model = st.text_input("Gemini model", value=get_default_model())
         st.caption("Get a free key at aistudio.google.com.")
 
     uploaded = st.file_uploader("Upload resume (PDF, DOCX or TXT)", type=["pdf", "docx", "txt"])
@@ -293,7 +312,7 @@ def main() -> None:
                     api_key, model.strip() or DEFAULT_MODEL, resume_text, job_description
                 )
             except Exception as exc:
-                st.error(f"Analysis failed: {exc}")
+                st.error(f"Analysis failed: {friendly_error(exc)}")
                 return
 
     if "result" in st.session_state:
